@@ -1,0 +1,37 @@
+name: ForestMarket external availability
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+    inputs:
+      preflight_only:
+        description: 'Check runner availability and script syntax without network probes or monitor secrets'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: forestmarket-external-availability
+  cancel-in-progress: false
+jobs:
+  probe:
+    if: (vars.EXTERNAL_AVAILABILITY_ENABLE == '1' || inputs.preflight_only == true) && github.repository == 'niall783/forestmarket-uptime' && github.actor == 'niall783' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-slim
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24.22.2'
+          package-manager-cache: false
+      - name: Check script syntax
+        run: node --check scripts/check-external-availability.mjs
+      - name: Check availability and record completed work
+        if: inputs.preflight_only != true
+        env:
+          EXTERNAL_MONITOR_TOKEN: ${{ secrets.EXTERNAL_MONITOR_TOKEN }}
+          EXTERNAL_MONITOR_EPOCH: ${{ vars.EXTERNAL_MONITOR_EPOCH }}
+          TEST_FAILURE: '0'
+        run: node scripts/check-external-availability.mjs
